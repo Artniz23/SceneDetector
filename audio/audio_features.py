@@ -3,7 +3,7 @@ import librosa
 import numpy as np
 
 def transcribe_audio_whisper(audio_path, model_size="tiny"):
-    model = whisper.load_model(model_size)
+    model = whisper.load_model(model_size, device="cuda")
     result = model.transcribe(audio_path)
     # TODO
     return result
