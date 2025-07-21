@@ -15,7 +15,7 @@ class CLIPSceneSplitter:
         # Загружаем модель CLIP и функцию предварительной обработки изображений
         self.model, self.preprocess = clip.load("ViT-B/32", device=self.device)
 
-    def extract_frames(self, video_path, every_n_frames=15):
+    def extract_frames(self, video_path):
         # Извлекаем кадры из видео через равные промежутки (каждые every_n_frames кадров)
         cap = cv2.VideoCapture(video_path)
         frames = []  # Список кадров
@@ -27,11 +27,10 @@ class CLIPSceneSplitter:
             ret, frame = cap.read()  # Читаем кадр
             if not ret:
                 break  # Выход из цикла, если видео закончилось
-            if frame_idx % every_n_frames == 0:
-                # Преобразуем BGR (OpenCV) в RGB (PIL/CLIP)
-                rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-                frames.append(rgb)
-                timestamps.append(frame_idx / fps)  # Сохраняем время кадра
+            # Преобразуем BGR (OpenCV) в RGB (PIL/CLIP)
+            rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            frames.append(rgb)
+            timestamps.append(frame_idx / fps)  # Сохраняем время кадра
             frame_idx += 1
 
         cap.release()
@@ -67,9 +66,9 @@ class CLIPSceneSplitter:
         scenes.append((timestamps[start], timestamps[-1]))
         return scenes  # Возвращаем список сцен как (start_time, end_time)
 
-    def detect_scenes(self, video_path, every_n_frames=15, n_clusters=8):
+    def detect_scenes(self, video_path, n_clusters=8):
         # Основной метод: извлекает сцены из видео
-        frames, timestamps = self.extract_frames(video_path, every_n_frames)
+        frames, timestamps = self.extract_frames(video_path)
         embeddings = self.compute_embeddings(frames)
         labels = self.cluster_embeddings(embeddings, n_clusters)
         scenes = self.get_scenes(labels, timestamps)

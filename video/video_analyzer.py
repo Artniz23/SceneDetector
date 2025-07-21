@@ -12,14 +12,15 @@ class VideoAnalyzer:
         self.detector = ObjectDetector()
         self.tracker = DeepSortTracker()
 
-    def analyze_video(self, video_path, every_n_frames=15):
+    def analyze_video(self, video_path):
         # Разделяем видео на сцены с заданным шагом кадров
-        scenes = self.splitter.detect_scenes(video_path, every_n_frames=every_n_frames)
+        scenes = self.splitter.detect_scenes(video_path)
 
         cap = cv2.VideoCapture(video_path)  # Открываем видео
         fps = cap.get(cv2.CAP_PROP_FPS)  # Получаем частоту кадров
         scene_data = []  # Список со сценами и id треков в них
         track_faces = {}  # Словарь для хранения вырезанных лиц по track_id
+        tracking_frames = {}
 
         # Анализ каждой сцены по очереди
         for (start, end) in tqdm(scenes, desc="Analyzing scenes"):
@@ -33,27 +34,31 @@ class VideoAnalyzer:
                 if not ret:
                     break  # Если видео закончилось раньше, выходим
 
-                if frame_idx % every_n_frames == 0:
-                    # Детекция объектов (людей) на кадре
-                    detections = self.detector.detect(frame)
-                    # Обновляем трекер — получаем список текущих треков
-                    tracks = self.tracker.update(detections, frame)
+                # Детекция объектов (людей) на кадре
+                detections = self.detector.detect(frame)
+                # Обновляем трекер — получаем список текущих треков
+                tracks = self.tracker.update(detections, frame)
 
-                    for t in tracks:
-                        track_id = t['track_id']
-                        x1, y1, x2, y2 = map(int, t['bbox'])  # Получаем координаты
+                for t in tracks:
+                    track_id = t['track_id']
+                    x1, y1, x2, y2 = map(int, t['bbox'])  # Получаем координаты
 
-                        track_ids_in_scene.add(track_id)  # Добавляем track_id в текущую сцену
+                    track_ids_in_scene.add(track_id)  # Добавляем track_id в текущую сцену
 
-                        # Вырезаем лицо по координатам
-                        face_crop = frame[y1:y2, x1:x2]
-                        if face_crop.size == 0:
-                            continue  # Пропускаем, если обрезка не удалась
+                    # Вырезаем лицо по координатам
+                    face_crop = frame[y1:y2, x1:x2]
+                    if face_crop.size == 0:
+                        continue  # Пропускаем, если обрезка не удалась
 
-                        if track_id not in track_faces:
-                            track_faces[track_id] = []
+                    if track_id not in track_faces:
+                        track_faces[track_id] = []
 
-                        track_faces[track_id].append(face_crop)  # Сохраняем лицо
+                    track_faces[track_id].append(face_crop)  # Сохраняем лицо
+
+                    # ⬇️ Сохраняем bbox по кадру
+                    if track_id not in tracking_frames:
+                        tracking_frames[track_id] = {}
+                    tracking_frames[track_id][frame_idx] = (x1, y1, x2, y2)
 
                 frame_idx += 1  # Переходим к следующему кадру
 
@@ -65,4 +70,4 @@ class VideoAnalyzer:
             })
 
         cap.release()  # Освобождаем видеофайл
-        return scene_data, track_faces  # Возвращаем список сцен и лица по трекам
+        return scene_data, track_faces, tracking_frames  # Возвращаем список сцен и лица по трекам
