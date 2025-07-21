@@ -1,7 +1,7 @@
 import re
 from sentence_transformers import util
 import numpy as np
-
+from sklearn.cluster import DBSCAN
 
 def enrich_scenes_with_characters(scene_data, track_id_to_person):
     # Добавляем персонажей в каждую сцену по track_id → person mapping
@@ -92,6 +92,81 @@ def group_semantic_scenes(
         })
 
     return grouped
+
+def cluster_scenes_with_time_windows(scenes, sentenceTransformer, window_size=60, eps=0.45, min_samples=2):
+    max_time = max(s['end'] for s in scenes)
+    scenes_sorted = sorted(scenes, key=lambda x: x['start'])
+    chapters = []
+
+    start_window = 0
+    while start_window < max_time:
+        end_window = start_window + window_size
+        window_scenes = [s for s in scenes_sorted if s['start'] >= start_window and s['start'] < end_window]
+        if not window_scenes:
+            start_window = end_window
+            continue
+
+        transcripts = [s['transcript'] for s in window_scenes]
+        embeddings = sentenceTransformer.encode(transcripts, convert_to_tensor=False, normalize_embeddings=True)
+        clustering = DBSCAN(eps=eps, min_samples=min_samples, metric='cosine')
+        labels = clustering.fit_predict(embeddings)
+
+        clusters = {}
+        for label, scene in zip(labels, window_scenes):
+            if label == -1:
+                label = f"scene_{scene['start']:.2f}"
+            if label not in clusters:
+                clusters[label] = {
+                    "start": scene["start"],
+                    "end": scene["end"],
+                    "characters": set(scene["characters"]),
+                    "transcripts": [scene["transcript"]],
+                    "avg_rms": [scene["avg_rms"]],
+                }
+            else:
+                clusters[label]["end"] = max(clusters[label]["end"], scene["end"])
+                clusters[label]["characters"].update(scene["characters"])
+                clusters[label]["transcripts"].append(scene["transcript"])
+                clusters[label]["avg_rms"].append(scene["avg_rms"])
+
+        for cluster in clusters.values():
+            chapters.append({
+                "start": cluster["start"],
+                "end": cluster["end"],
+                "characters": sorted(list(cluster["characters"])),
+                "transcript": " ".join(cluster["transcripts"]),
+                "avg_rms": float(np.mean(cluster["avg_rms"]))
+            })
+
+        start_window = end_window
+
+    chapters = sorted(chapters, key=lambda x: x['start'])
+    return chapters
+
+
+def resolve_time_overlaps(chapters):
+    """
+    Убирает пересечения по времени в списке сцен/глав.
+    Если сцены накладываются, подрезает начало следующей сцены.
+    """
+    # Сортируем по start
+    chapters.sort(key=lambda x: x['start'])
+
+    resolved = []
+    prev_end = 0
+    for ch in chapters:
+        start = max(ch['start'], prev_end)
+        end = ch['end']
+        if start >= end:
+            # сцена полностью перекрыта — можно пропустить или скорректировать
+            continue
+        resolved.append({
+            **ch,
+            'start': start,
+            'end': end
+        })
+        prev_end = end
+    return resolved
 
 
 def enrich_scenes_with_audio(scenes, segments, energy, frame_duration=1.0):
