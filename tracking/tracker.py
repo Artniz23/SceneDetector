@@ -12,7 +12,7 @@ class DeepSortTracker:
             max_cosine_distance=0.2,  # Порог на косинусную дистанцию между эмбеддингами
             nn_budget=None,  # Ограничение на размер памяти для сравнения эмбеддингов (None — без ограничения)
             override_track_class=None,  # Не используется — можно оставить None
-            embedder="mobilenet",  # Тип модели эмбеддера (mobilenet — быстрый, osnet_x0_25 — точнее, но медленнее)
+            embedder="torchreid",  # Тип модели эмбеддера (mobilenet — быстрый, torchreid — точнее, но медленнее)
             half=True,  # Использовать половинную точность (fp16) — быстрее на GPU
             bgr=True,  # Кадры передаются в формате BGR (как в OpenCV)
             embedder_gpu=torch.cuda.is_available()  # Включение GPU для эмбеддера, если доступен
