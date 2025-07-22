@@ -5,11 +5,12 @@ from tracking.tracker import DeepSortTracker  # Трекер для отслеж
 
 
 class VideoProcessor:
-    def __init__(self):
+    def __init__(self, using_cache=False):
         # Инициализация компонентов: разделитель сцен, детектор и трекер
-        self.detector = ObjectDetector()
-        self.tracker = DeepSortTracker()
-        self.face_reid = FaceReId()
+        if not using_cache:
+            self.detector = ObjectDetector()
+            self.tracker = DeepSortTracker()
+            self.face_reid = FaceReId()
 
     def generate_video_with_persons(self, video_path, output_path):
         track_faces, tracking_frames = self.get_faces_data(video_path)
